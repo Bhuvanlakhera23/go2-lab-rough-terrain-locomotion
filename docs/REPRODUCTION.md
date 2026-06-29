@@ -35,7 +35,8 @@ Additional prerequisites by stage:
   - a Go2 MuJoCo scene XML, for example from `mujoco_menagerie`
   - `GO2_MUJOCO_MODEL=/path/to/unitree_go2/scene.xml` or `--model-path`
 - Hardware:
-  - a `unitree_sdk2py` checkout or install
+  - Python package `cyclonedds==0.10.2`
+  - the vendored `third_party/unitree_sdk2py` package
   - a valid network path to the robot
   - an optional mode-switch helper script if you want the runner to switch into low-level mode for you
 - Unitree RL MJLAB C++ FSM runtime:
@@ -53,19 +54,13 @@ $ISAACLAB_ROOT/_isaac_sim/python.sh -m pip install --user --no-deps -e .
 Do not use dependency resolution inside Isaac Sim Python. IsaacLab already
 provides the compatible `torch`, CUDA, and `gymnasium` stack.
 
-For hardware DDS tools, prepare a separate hardware Python environment that can
-import `unitree_sdk2py`:
+For hardware DDS tools, prepare a separate hardware Python environment with
+CycloneDDS and verify the vendored SDK import:
 
 ```bash
 cd "$REPO"
-mkdir -p reference_repos
-git clone https://github.com/unitreerobotics/unitree_sdk2_python.git \
-  reference_repos/unitree_sdk2py
-
-python -m pip install cyclonedds
-python -m pip install -e reference_repos/unitree_sdk2py
-
-export UNITREE_SDK2PY_ROOT="$REPO/reference_repos/unitree_sdk2py"
+python -m pip install 'cyclonedds==0.10.2'
+export UNITREE_SDK2PY_ROOT="$REPO/third_party/unitree_sdk2py"
 python -c "import sys, os; sys.path.insert(0, os.environ['UNITREE_SDK2PY_ROOT']); import unitree_sdk2py; print('unitree_sdk2py OK')"
 ```
 
@@ -277,8 +272,7 @@ cd "$REPO"
 python scripts/deploy/probe_go2_readonly.py \
   --net-if "$GO2_ETH_IF" \
   --duration-s 5 \
-  --subscribe-sport \
-  --unitree-sdk-root /path/to/unitree_sdk2py
+  --subscribe-sport
 ```
 
 ## Step 9: Hardware Bring-Up
@@ -290,8 +284,7 @@ cd "$REPO"
 python scripts/deploy/monitor_go2_realtime.py \
   --net-if "$GO2_ETH_IF" \
   --subscribe-lowcmd \
-  --jsonl-out artifacts/go2_realtime_monitor/asymppo_walk.jsonl \
-  --unitree-sdk-root /path/to/unitree_sdk2py
+  --jsonl-out artifacts/go2_realtime_monitor/asymppo_walk.jsonl
 ```
 
 Dry-run the hardware contract first:
@@ -311,7 +304,6 @@ cd "$REPO"
 python scripts/deploy/run_go2_hardware.py \
   --bundle-dir artifacts/exported/go2_blind_rough_asymppo_mjlab_v1_candidate \
   --net-if "$GO2_ETH_IF" \
-  --unitree-sdk-root /path/to/unitree_sdk2py \
   --mode-switch-script /path/to/mode_switch.py \
   --stance-only \
   --duration-s 5

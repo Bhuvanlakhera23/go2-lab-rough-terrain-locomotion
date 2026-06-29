@@ -19,6 +19,9 @@ scripts/deploy/
   read-only DDS probe, realtime monitor, Python hardware bring-up helper, and
   patch/wrapper flow for the Unitree RL MJLAB C++ FSM runtime.
 
+third_party/unitree_sdk2py/
+  Vendored Unitree SDK2 Python package subset used by hardware DDS tools.
+
 assets/robots/go2/
   The Go2 USD asset contract used by this public baseline.
 
@@ -40,10 +43,10 @@ MuJoCo Python package
 Go2 MuJoCo scene XML
   Required for MuJoCo validation. Set GO2_MUJOCO_MODEL or pass --model-path.
 
-Unitree SDK2 Python bindings
+CycloneDDS Python package
   Required only for read-only DDS probes, realtime monitoring, and Python
-  hardware bring-up. The Python module imported by the tools is
-  `unitree_sdk2py`.
+  hardware bring-up. The `unitree_sdk2py` package itself is vendored in this
+  repo under third_party/unitree_sdk2py.
 
 unitree_rl_mjlab C++ runtime
   Optional but recommended for reproducing the validated two-terminal
@@ -61,8 +64,8 @@ Robot network access
   Wi-Fi.
 ```
 
-This repo does not vendor IsaacLab, MuJoCo Menagerie, Unitree SDKs, raw
-training checkpoints, or generated exported bundles.
+This repo does not vendor IsaacLab, MuJoCo Menagerie, the Unitree C++ SDK,
+raw training checkpoints, or generated exported bundles.
 
 ## Optional C++ FSM Runtime Layout
 
@@ -83,32 +86,26 @@ ONNX dynamic-batch handling to the external C++ runtime.
 
 ## Hardware Python DDS Setup
 
-The read-only DDS probe, realtime monitor, and Python hardware runner need a
-Python environment that can import:
+The read-only DDS probe, realtime monitor, and Python hardware runner use the
+vendored SDK package:
 
 ```text
-unitree_sdk2py
-cyclonedds
+third_party/unitree_sdk2py/unitree_sdk2py
 ```
 
-One portable layout is:
+You still need the external CycloneDDS Python package in the hardware
+environment:
 
 ```bash
 cd "$REPO"
-mkdir -p reference_repos
-git clone https://github.com/unitreerobotics/unitree_sdk2_python.git \
-  reference_repos/unitree_sdk2py
-
-python -m pip install cyclonedds
-python -m pip install -e reference_repos/unitree_sdk2py
-
-export UNITREE_SDK2PY_ROOT="$REPO/reference_repos/unitree_sdk2py"
+python -m pip install 'cyclonedds==0.10.2'
+export UNITREE_SDK2PY_ROOT="$REPO/third_party/unitree_sdk2py"
 python -c "import sys, os; sys.path.insert(0, os.environ['UNITREE_SDK2PY_ROOT']); import unitree_sdk2py; print('unitree_sdk2py OK')"
 ```
 
-If your lab uses a forked SDK checkout instead, keep the same contract: the
-path passed through `UNITREE_SDK2PY_ROOT` or `--unitree-sdk-root` must contain
-the importable `unitree_sdk2py` package.
+If your lab intentionally uses a different SDK checkout, keep the same
+contract: the path passed through `UNITREE_SDK2PY_ROOT` or `--unitree-sdk-root`
+must contain the importable `unitree_sdk2py` package.
 
 ## IsaacLab Install Rule
 

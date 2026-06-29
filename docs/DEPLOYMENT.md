@@ -127,7 +127,8 @@ MuJoCo sim2sim requires:
 
 Hardware bring-up requires:
 
-- a `unitree_sdk2py` checkout or install
+- the vendored `third_party/unitree_sdk2py` package
+- Python package `cyclonedds==0.10.2`
 - a reachable robot network interface
 - optionally a mode-switch helper script if you want this repo's runner to
   switch into low-level mode for you

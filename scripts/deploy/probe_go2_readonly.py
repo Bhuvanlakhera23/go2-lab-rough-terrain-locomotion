@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--subscribe-sport", action="store_true")
     parser.add_argument("--subscribe-lowcmd", action="store_true")
     parser.add_argument("--json-out", default="")
-    parser.add_argument("--unitree-sdk-root", default="", help="Path to a unitree_sdk2py checkout.")
+    parser.add_argument("--unitree-sdk-root", default="", help="Override path containing the unitree_sdk2py package.")
     return parser.parse_args()
 
 
@@ -94,9 +94,10 @@ class Go2ReadOnlyProbe:
         except ModuleNotFoundError as exc:
             print("Missing Unitree DDS Python dependency while starting read-only probe.", file=sys.stderr)
             print(f"Missing module: {exc.name}", file=sys.stderr)
-            print("Set UNITREE_SDK2PY_ROOT or pass --unitree-sdk-root to a unitree_sdk2py checkout.", file=sys.stderr)
+            print("The repo vendors this package at third_party/unitree_sdk2py by default.", file=sys.stderr)
+            print("If using a custom SDK, set UNITREE_SDK2PY_ROOT or pass --unitree-sdk-root.", file=sys.stderr)
             print("Example:", file=sys.stderr)
-            print("  export UNITREE_SDK2PY_ROOT=$REPO/reference_repos/unitree_sdk2py", file=sys.stderr)
+            print("  export UNITREE_SDK2PY_ROOT=$REPO/third_party/unitree_sdk2py", file=sys.stderr)
             print("  python -c \"import sys, os; sys.path.insert(0, os.environ['UNITREE_SDK2PY_ROOT']); import unitree_sdk2py\"", file=sys.stderr)
             raise SystemExit(1) from exc
 

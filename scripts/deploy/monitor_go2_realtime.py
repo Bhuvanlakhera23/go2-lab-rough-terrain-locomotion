@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--subscribe-lowcmd", action="store_true")
     parser.add_argument("--jsonl-out", default="")
     parser.add_argument("--duration-s", type=float, default=0.0, help="0 means run until Ctrl-C.")
-    parser.add_argument("--unitree-sdk-root", default="", help="Path to a unitree_sdk2py checkout.")
+    parser.add_argument("--unitree-sdk-root", default="", help="Override path containing the unitree_sdk2py package.")
     return parser.parse_args()
 
 

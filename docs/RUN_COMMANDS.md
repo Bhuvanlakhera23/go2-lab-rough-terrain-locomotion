@@ -12,22 +12,16 @@ export GO2_ETH_IF=eth0
 export ASYMPPO_CKPT=~/isaaclab_logs/go2_blind_rough_asymppo_mjlab_v1/model_1999.pt
 export ASYMPPO_BUNDLE=$REPO/artifacts/exported/go2_blind_rough_asymppo_mjlab_v1_candidate
 export GO2_MUJOCO_MODEL=/path/to/unitree_go2/scene.xml
-export UNITREE_SDK2PY_ROOT=/path/to/unitree_sdk2py
+export UNITREE_SDK2PY_ROOT=$REPO/third_party/unitree_sdk2py
 ```
 
-If the hardware DDS probe reports `Missing module: unitree_sdk2py`, set up the
-hardware Python SDK environment first:
+For hardware DDS tools, install CycloneDDS in the hardware Python environment
+and verify the vendored SDK import:
 
 ```bash
 cd "$REPO"
-mkdir -p reference_repos
-git clone https://github.com/unitreerobotics/unitree_sdk2_python.git \
-  reference_repos/unitree_sdk2py
-
-python -m pip install cyclonedds
-python -m pip install -e reference_repos/unitree_sdk2py
-
-export UNITREE_SDK2PY_ROOT="$REPO/reference_repos/unitree_sdk2py"
+python -m pip install 'cyclonedds==0.10.2'
+export UNITREE_SDK2PY_ROOT="$REPO/third_party/unitree_sdk2py"
 python -c "import sys, os; sys.path.insert(0, os.environ['UNITREE_SDK2PY_ROOT']); import unitree_sdk2py; print('unitree_sdk2py OK')"
 ```
 
@@ -134,8 +128,7 @@ cd "$REPO"
 python scripts/deploy/probe_go2_readonly.py \
   --net-if "$GO2_ETH_IF" \
   --duration-s 5 \
-  --subscribe-sport \
-  --unitree-sdk-root "$UNITREE_SDK2PY_ROOT"
+  --subscribe-sport
 ```
 
 Read-only monitor:
@@ -145,8 +138,7 @@ cd "$REPO"
 python scripts/deploy/monitor_go2_realtime.py \
   --net-if "$GO2_ETH_IF" \
   --subscribe-lowcmd \
-  --jsonl-out artifacts/go2_realtime_monitor/asymppo_walk.jsonl \
-  --unitree-sdk-root "$UNITREE_SDK2PY_ROOT"
+  --jsonl-out artifacts/go2_realtime_monitor/asymppo_walk.jsonl
 ```
 
 Dry-run hardware contract:
@@ -166,7 +158,6 @@ cd "$REPO"
 python scripts/deploy/run_go2_hardware.py \
   --bundle-dir "$ASYMPPO_BUNDLE" \
   --net-if "$GO2_ETH_IF" \
-  --unitree-sdk-root "$UNITREE_SDK2PY_ROOT" \
   --mode-switch-script /path/to/mode_switch.py \
   --stance-only \
   --duration-s 5

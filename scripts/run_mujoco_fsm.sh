@@ -70,8 +70,7 @@ Copy-paste starting points:
   python scripts/deploy/probe_go2_readonly.py \\
     --net-if "\${GO2_ETH_IF:-eth0}" \\
     --duration-s 5 \\
-    --subscribe-sport \\
-    --unitree-sdk-root /path/to/unitree_sdk2py
+    --subscribe-sport
 
   cd "${REPO_ROOT}"
   python scripts/deploy/run_go2_hardware.py \\
@@ -82,7 +81,7 @@ Copy-paste starting points:
 Prerequisites to set yourself:
   export GO2_MUJOCO_MODEL=/path/to/unitree_go2/scene.xml
   export GO2_ETH_IF=eth0
-  export UNITREE_SDK2PY_ROOT=/path/to/unitree_sdk2py
+  export UNITREE_SDK2PY_ROOT="${REPO_ROOT}/third_party/unitree_sdk2py"
 
 See also:
   ${REPO_ROOT}/docs/REPRODUCTION.md

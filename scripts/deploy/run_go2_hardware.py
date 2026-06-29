@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle-dir", required=True)
     parser.add_argument("--net-if", required=True)
-    parser.add_argument("--unitree-sdk-root", default="", help="Path to a unitree_sdk2py checkout.")
+    parser.add_argument("--unitree-sdk-root", default="", help="Override path containing the unitree_sdk2py package.")
     parser.add_argument("--mode-switch-script", default="", help="Optional SDK mode-switch helper path.")
     parser.add_argument("--skip-mode-switch", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
