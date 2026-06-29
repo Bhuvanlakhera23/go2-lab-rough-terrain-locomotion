@@ -42,7 +42,8 @@ Go2 MuJoCo scene XML
 
 Unitree SDK2 Python bindings
   Required only for read-only DDS probes, realtime monitoring, and Python
-  hardware bring-up.
+  hardware bring-up. The Python module imported by the tools is
+  `unitree_sdk2py`.
 
 unitree_rl_mjlab C++ runtime
   Optional but recommended for reproducing the validated two-terminal
@@ -79,6 +80,35 @@ patches/unitree_rl_mjlab/
 The patch is repo-owned because it is part of the validated deployment
 contract. It adds scripted sim startup, keyboard teleop, joystick override, and
 ONNX dynamic-batch handling to the external C++ runtime.
+
+## Hardware Python DDS Setup
+
+The read-only DDS probe, realtime monitor, and Python hardware runner need a
+Python environment that can import:
+
+```text
+unitree_sdk2py
+cyclonedds
+```
+
+One portable layout is:
+
+```bash
+cd "$REPO"
+mkdir -p reference_repos
+git clone https://github.com/unitreerobotics/unitree_sdk2_python.git \
+  reference_repos/unitree_sdk2py
+
+python -m pip install cyclonedds
+python -m pip install -e reference_repos/unitree_sdk2py
+
+export UNITREE_SDK2PY_ROOT="$REPO/reference_repos/unitree_sdk2py"
+python -c "import sys, os; sys.path.insert(0, os.environ['UNITREE_SDK2PY_ROOT']); import unitree_sdk2py; print('unitree_sdk2py OK')"
+```
+
+If your lab uses a forked SDK checkout instead, keep the same contract: the
+path passed through `UNITREE_SDK2PY_ROOT` or `--unitree-sdk-root` must contain
+the importable `unitree_sdk2py` package.
 
 ## IsaacLab Install Rule
 

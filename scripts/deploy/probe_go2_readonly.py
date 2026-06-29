@@ -84,12 +84,21 @@ class Go2ReadOnlyProbe:
         self.sport_stats = TopicStats("rt/sportmodestate")
         self.lowcmd_stats = TopicStats("rt/lowcmd")
 
-        from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelSubscriber
-        from unitree_sdk2py.idl.default import (
-            unitree_go_msg_dds__LowCmd_ as LowCmdGo,
-            unitree_go_msg_dds__LowState_ as LowStateGo,
-            unitree_go_msg_dds__SportModeState_ as SportModeStateGo,
-        )
+        try:
+            from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelSubscriber
+            from unitree_sdk2py.idl.default import (
+                unitree_go_msg_dds__LowCmd_ as LowCmdGo,
+                unitree_go_msg_dds__LowState_ as LowStateGo,
+                unitree_go_msg_dds__SportModeState_ as SportModeStateGo,
+            )
+        except ModuleNotFoundError as exc:
+            print("Missing Unitree DDS Python dependency while starting read-only probe.", file=sys.stderr)
+            print(f"Missing module: {exc.name}", file=sys.stderr)
+            print("Set UNITREE_SDK2PY_ROOT or pass --unitree-sdk-root to a unitree_sdk2py checkout.", file=sys.stderr)
+            print("Example:", file=sys.stderr)
+            print("  export UNITREE_SDK2PY_ROOT=$REPO/reference_repos/unitree_sdk2py", file=sys.stderr)
+            print("  python -c \"import sys, os; sys.path.insert(0, os.environ['UNITREE_SDK2PY_ROOT']); import unitree_sdk2py\"", file=sys.stderr)
+            raise SystemExit(1) from exc
 
         ChannelFactoryInitialize(0, net_if)
         self.low_state = LowStateGo()

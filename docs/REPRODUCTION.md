@@ -53,6 +53,22 @@ $ISAACLAB_ROOT/_isaac_sim/python.sh -m pip install --user --no-deps -e .
 Do not use dependency resolution inside Isaac Sim Python. IsaacLab already
 provides the compatible `torch`, CUDA, and `gymnasium` stack.
 
+For hardware DDS tools, prepare a separate hardware Python environment that can
+import `unitree_sdk2py`:
+
+```bash
+cd "$REPO"
+mkdir -p reference_repos
+git clone https://github.com/unitreerobotics/unitree_sdk2_python.git \
+  reference_repos/unitree_sdk2py
+
+python -m pip install cyclonedds
+python -m pip install -e reference_repos/unitree_sdk2py
+
+export UNITREE_SDK2PY_ROOT="$REPO/reference_repos/unitree_sdk2py"
+python -c "import sys, os; sys.path.insert(0, os.environ['UNITREE_SDK2PY_ROOT']); import unitree_sdk2py; print('unitree_sdk2py OK')"
+```
+
 ## Step 1: Preflight
 
 Validate the IsaacLab side before training:

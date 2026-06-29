@@ -15,6 +15,22 @@ export GO2_MUJOCO_MODEL=/path/to/unitree_go2/scene.xml
 export UNITREE_SDK2PY_ROOT=/path/to/unitree_sdk2py
 ```
 
+If the hardware DDS probe reports `Missing module: unitree_sdk2py`, set up the
+hardware Python SDK environment first:
+
+```bash
+cd "$REPO"
+mkdir -p reference_repos
+git clone https://github.com/unitreerobotics/unitree_sdk2_python.git \
+  reference_repos/unitree_sdk2py
+
+python -m pip install cyclonedds
+python -m pip install -e reference_repos/unitree_sdk2py
+
+export UNITREE_SDK2PY_ROOT="$REPO/reference_repos/unitree_sdk2py"
+python -c "import sys, os; sys.path.insert(0, os.environ['UNITREE_SDK2PY_ROOT']); import unitree_sdk2py; print('unitree_sdk2py OK')"
+```
+
 ## Workstation Preflight
 
 Run these from this repo:
