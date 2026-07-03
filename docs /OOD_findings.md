@@ -85,8 +85,18 @@ Visual Comparison:
 
 ## Dynamics OOD Summary
 
-### Ultra-High Friction
+### Ultra-High Friction on Slopes
 
+- Trakr AsymPPO:
+  - `episodes = 101`
+  - `vel_err = 0.2134`
+  - `timeout_frac = 0.5149`
+  - `base_contact_frac = 0.0000`
+  - `bad_orientation_frac = 0.4851`
+
+Visual Comparison:
+- Trakr AsymPPO can climb medium slopes with 90% success rate.
+- On very steep slopes, it has 50% success rate and cannot recover from high angular momentum.
 
 ### Very Heavy
 
@@ -106,6 +116,13 @@ Visual Comparison:
 - Velocity Tracking error is higher for both checkpoints as they have to compensate for more weight.
 
 ### Ultra-Low Friction
+
+- Trakr AsymPPO:
+  - `episodes = 103`
+  - `vel_err = 0.3219`
+  - `timeout_frac = 0.4951`
+  - `base_contact_frac = 0.0291`
+  - `bad_orientation_frac = 0.5048`
 
 
 ### Very Weak Motors

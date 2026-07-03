@@ -33,18 +33,18 @@ COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
     use_cache=False,
     sub_terrains={
         # "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.1),
-        # "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-        #     proportion=0.1, noise_range=(0.05, 0.12), noise_step=0.01, border_width=0.25
-        # ),
-        # "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
-        #     proportion=0.1, slope_range=(0.3, 0.6), platform_width=2.0, border_width=0.25
-        # ),
-        # "hf_pyramid_slope_inv": terrain_gen.HfInvertedPyramidSlopedTerrainCfg(
-        #     proportion=0.1, slope_range=(0.3, 0.6), platform_width=2.0, border_width=0.25
-        # ),
-        "boxes": terrain_gen.MeshRandomGridTerrainCfg(
-            proportion=0.2, grid_width=0.45, grid_height_range=(0.05, 0.18), platform_width=2.0
+        "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+            proportion=0.1, noise_range=(0.05, 0.12), noise_step=0.01, border_width=0.25
         ),
+        "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
+            proportion=0.1, slope_range=(0.3, 0.6), platform_width=2.0, border_width=0.25
+        ),
+        "hf_pyramid_slope_inv": terrain_gen.HfInvertedPyramidSlopedTerrainCfg(
+            proportion=0.1, slope_range=(0.3, 0.6), platform_width=2.0, border_width=0.25
+        ),
+        # "boxes": terrain_gen.MeshRandomGridTerrainCfg(
+        #     proportion=0.2, grid_width=0.45, grid_height_range=(0.05, 0.2), platform_width=2.0
+        # ),
         # "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
         #     proportion=0.2,
         #     step_height_range=(0.08, 0.15),
@@ -99,6 +99,20 @@ class RobotSceneCfg(InteractiveSceneCfg):
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         ray_alignment="yaw",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+        debug_vis=False,
+        mesh_prim_paths=["/World/ground"],
+    )
+    lidar = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/trakr/trakr/base_link",  # updated to match the trakr_imu.usd file --> inspected the Stage and the prim paths in IsaacSim
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.1)),
+        ray_alignment="base",
+        max_distance = 2.0,
+        pattern_cfg=patterns.LidarPatternCfg(
+            channels = 16,
+            vertical_fov_range = (-30.0, 30.0),
+            horizontal_fov_range = (-180.0, 180.0),
+            horizontal_res = 5.0,
+        ),
         debug_vis=False,
         mesh_prim_paths=["/World/ground"],
     )
@@ -207,10 +221,10 @@ class CommandsCfg:
         rel_standing_envs=0.1,
         debug_vis=True,
         ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(0.0, 0.0), lin_vel_y=(0.5, 1.0), ang_vel_z=(0.0, 0.0)
+            lin_vel_x=(-0.3, 0.3), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1, 1)
         ),
         limit_ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(0.0, 0.0), lin_vel_y=(0.5, 1.0), ang_vel_z=(0.0, 0.0)
+            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0)
         ),
     )
 
@@ -270,6 +284,12 @@ class ObservationsCfg:
         #     params={"sensor_cfg": SceneEntityCfg("height_scanner")},
         #     clip=(-1.0, 5.0),
         # )
+        lidar = ObsTerm(func=mdp.lidar,
+            params={"sensor_cfg": SceneEntityCfg("lidar"),
+                   "normalize": True,
+                   },
+            clip=(0.0, 1.0)
+        )
 
         def __post_init__(self):
             self.history_length = 5
@@ -376,7 +396,7 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     base_contact = DoneTerm(
         func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=["base_link", ".*_hip" ]), "threshold": 1.0},  # Updated body_name from 'base' to 'base_link' to match the trakr_imu.usd file
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base_link"), "threshold": 1.0},  # Updated body_name from 'base' to 'base_link' to match the trakr_imu.usd file
     )
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 0.8})
 

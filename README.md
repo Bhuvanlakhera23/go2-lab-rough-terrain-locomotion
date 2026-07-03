@@ -1,4 +1,4 @@
-# Trakr RL
+# Reinforcement Learning codebase for Trakr
 
 Isaac Lab workspace for Trakr locomotion training and evaluation.
 
@@ -75,6 +75,7 @@ If the Trakr USD path changes, update it in:
 |                       ├── trakr-blocks/
 |                       └── trakr-eval/
 ├── logs/
+├── docs/
 └── trakr_rl.sh
 ```
 
@@ -91,23 +92,18 @@ Key pieces:
 
 ## Training
 
-Train flat-terrain locomotion:
+Train a specific task:
 
 ```bash
-./trakr_rl.sh -t --task Trakr-Velocity
+./trakr_rl.sh -t --task [TASK-NAME]
 ```
 
-Train rough-terrain locomotion:
+Registered Task are given below:
 
-```bash
-./trakr_rl.sh -t --task Trakr-Velocity-Rough
-```
-
-Train Stair Climbing/Descending:
-
-```bash
-./trakr_rl.sh -t --task Trakr-Velocity-Stairs
-```
+- Trakr-Velocity
+- Trakr-Velocity-Rough
+- Trakr-Velocity-Stairs
+- Trakr-Velocity-Blocks
 
 Warm-start training from a pre-trained checkpoint:
 
@@ -156,3 +152,4 @@ Teleoperate Trakr with a checkpoint
 | [Task Setup](docs/task_setup.md) | Flat and rough terrain task registration and MDP design |
 | [Policy & Training](docs/policy_training.md) | PPO architecture and hyperparameter reference |
 | [Reward Functions](docs/rewards.md) | Reward terms, tuning rationale, and formulas |
+| [OOD Findings](docs/OOD_findings.md) | OOD Metrics and Visual Comparisons between Trakr baseline and Go2 baseline|

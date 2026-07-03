@@ -6,3 +6,6 @@ assets/clips/raw_c1/
 outputs/
 
 logs/
+
+exported/
+*.mp4

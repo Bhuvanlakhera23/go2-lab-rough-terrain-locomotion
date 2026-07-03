@@ -1,0 +1,258 @@
+\section{Extending the Trakr Locomotion Task to Rough Terrain}
+
+After the flat Trakr velocity-tracking task was implemented, the existing task was extended into a rough
+terrain variant. The rough task was kept separate from the flat task so that flat-ground locomotion and
+terrain locomotion could be trained, evaluated, and exported independently. This was done by adding a new
+robot task folder,
+\texttt{trakr\_rl/tasks/locomotion/robots/trakr-rough}, while reusing the same Trakr articulation,
+manager-based environment structure, PPO runner, observation design, and MDP utilities from the flat
+locomotion task.
+
+\subsection{Separate Rough-Terrain Task Registration}
+
+The rough-terrain task was registered as a new Gymnasium environment with the id
+\texttt{Trakr-Velocity-Rough}. This allowed the rough environment to appear as a separate task in the
+training script while still using Isaac Lab's \texttt{ManagerBasedRLEnv}. The registration points to the
+rough task's own \texttt{velocity\_env\_cfg.py}, but it continues to use the same RSL-RL PPO runner
+configuration as the flat task.
+
+\begin{lstlisting}[language=Python,caption={Rough-terrain task registration.}]
+import gymnasium as gym
+
+gym.register(
+    id="Trakr-Velocity-Rough",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.velocity_env_cfg:RobotEnvCfg",
+        "play_env_cfg_entry_point": f"{__name__}.velocity_env_cfg:RobotPlayEnvCfg",
+        "rsl_rl_cfg_entry_point": (
+            "trakr_rl.tasks.locomotion.agents.rsl_rl_ppo_cfg:"
+            "BasePPORunnerCfg"
+        ),
+    },
+)
+\end{lstlisting}
+
+With this registration, the rough-terrain policy could be trained through the same wrapper script:
+
+\begin{lstlisting}[language=bash,caption={Training command for the rough-terrain task.}]
+./trakr_rl.sh --train --task Trakr-Velocity-Rough
+\end{lstlisting}
+
+\subsection{Replacing the Flat Terrain With a Mixed Terrain Generator}
+
+The main extension from the flat task was the terrain generator. The flat task used the same Isaac Lab
+terrain importer interface, but only enabled a plane-like terrain. For rough-terrain training, the
+sub-terrain dictionary was expanded to include multiple terrain types: flat ground, random height-field
+roughness, pyramid slopes, ascending stairs, and descending stairs. This gave the Trakr policy exposure to
+different contact patterns and body-pose disturbances during training.
+
+\begin{lstlisting}[language=Python,caption={Mixed rough-terrain generator used by the Trakr rough task.}]
+COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
+    size=(8.0, 8.0),
+    border_width=20.0,
+    num_rows=10,
+    num_cols=20,
+    horizontal_scale=0.1,
+    vertical_scale=0.005,
+    slope_threshold=0.75,
+    difficulty_range=(0.0, 1.0),
+    use_cache=False,
+    sub_terrains={
+        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.1),
+        "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+            proportion=0.1,
+            noise_range=(0.05, 0.12),
+            noise_step=0.01,
+            border_width=0.25,
+        ),
+        "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
+            proportion=0.1,
+            slope_range=(0.5, 0.6),
+            platform_width=2.0,
+            border_width=0.25,
+        ),
+        "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
+            proportion=0.2,
+            step_height_range=(0.08, 0.15),
+            step_width=0.3,
+            platform_width=3.0,
+            border_width=1.0,
+            holes=False,
+        ),
+        "pyramid_stairs_inv": terrain_gen.MeshInvertedPyramidStairsTerrainCfg(
+            proportion=0.2,
+            step_height_range=(0.08, 0.15),
+            step_width=0.3,
+            platform_width=3.0,
+            border_width=1.0,
+            holes=False,
+        ),
+    },
+)
+\end{lstlisting}
+
+The rough task therefore preserved some flat tiles, but introduced rough height variations in the range
+\texttt{0.05--0.12 m}, slopes in the range \texttt{0.5--0.6}, and stair heights in the range
+\texttt{0.08--0.15 m}. The generator was arranged as a grid with \texttt{10} rows and \texttt{20} columns,
+which created many terrain patches with different difficulty levels. This made it possible to use Isaac
+Lab's terrain curriculum mechanism to gradually expose the policy to harder patches as performance
+improved.
+
+\subsection{Connecting the Terrain Generator to the Scene}
+
+The rough terrain was connected to the environment through \texttt{TerrainImporterCfg}. The terrain type
+was set to \texttt{generator}, and the terrain generator was assigned to the rough-terrain configuration.
+The same Trakr robot asset from the flat task was then spawned on top of this generated terrain.
+
+\begin{lstlisting}[language=Python,caption={Scene terrain importer for generated rough terrain.}]
+terrain = TerrainImporterCfg(
+    prim_path="/World/ground",
+    terrain_type="generator",
+    terrain_generator=COBBLESTONE_ROAD_CFG,
+    max_init_terrain_level=1,
+    collision_group=-1,
+    physics_material=sim_utils.RigidBodyMaterialCfg(
+        friction_combine_mode="multiply",
+        restitution_combine_mode="multiply",
+        static_friction=1.0,
+        dynamic_friction=1.0,
+    ),
+    debug_vis=False,
+)
+
+robot: ArticulationCfg = ROBOT_CFG.replace(
+    prim_path="{ENV_REGEX_NS}/trakr"
+)
+\end{lstlisting}
+
+The height scanner and contact sensors were kept from the Trakr task and pointed to the Trakr USD prim
+paths. The scanner was mounted relative to \texttt{base\_link}, while the contact sensor matched all Trakr
+bodies under the robot prim. This preserved the same robot-specific body naming fixes from the flat task
+while changing only the terrain distribution.
+
+\subsection{Using Terrain Curriculum}
+
+The rough task enabled terrain curriculum through the \texttt{terrain\_levels\_vel} curriculum term. In
+the environment post-initialization step, the terrain generator curriculum flag was enabled whenever the
+terrain curriculum term was present. This allowed Isaac Lab to control the terrain level assignment during
+training.
+
+\begin{lstlisting}[language=Python,caption={Enabling terrain curriculum for the rough generator.}]
+class CurriculumCfg:
+    terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
+    lin_vel_cmd_levels = CurrTerm(mdp.lin_vel_cmd_levels)
+
+def __post_init__(self):
+    self.decimation = 4
+    self.episode_length_s = 20.0
+    self.sim.dt = 0.005
+
+    if getattr(self.curriculum, "terrain_levels", None) is not None:
+        if self.scene.terrain.terrain_generator is not None:
+            self.scene.terrain.terrain_generator.curriculum = True
+    else:
+        if self.scene.terrain.terrain_generator is not None:
+            self.scene.terrain.terrain_generator.curriculum = False
+\end{lstlisting}
+
+The rough environment also increased the number of parallel training environments from the flat task's
+\texttt{512} environments to \texttt{2048} environments. This produced more terrain interactions per PPO
+iteration, which is useful because rough-terrain locomotion has a larger state distribution than
+flat-ground walking.
+
+\begin{lstlisting}[language=Python,caption={Increased parallel environments for rough-terrain training.}]
+class RobotEnvCfg(ManagerBasedRLEnvCfg):
+    scene: RobotSceneCfg = RobotSceneCfg(
+        num_envs=2048,
+        env_spacing=2.5,
+    )
+\end{lstlisting}
+
+\subsection{Command and Reward Changes for Rough Terrain}
+
+The command distribution was narrowed for the rough-terrain experiment. Instead of training the robot on
+all planar velocity directions and yaw rates, the rough task commanded lateral motion only, with
+\texttt{lin\_vel\_y} between \texttt{0.5} and \texttt{1.0 m/s}. Forward velocity and yaw velocity were set
+to zero. This focused training on a specific rough-terrain traversal behavior rather than a fully general
+omnidirectional policy.
+
+\begin{lstlisting}[language=Python,caption={Velocity command range used in the rough task.}]
+base_velocity = mdp.UniformLevelVelocityCommandCfg(
+    asset_name="robot",
+    resampling_time_range=(10.0, 10.0),
+    rel_standing_envs=0.1,
+    debug_vis=True,
+    ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
+        lin_vel_x=(0.0, 0.0),
+        lin_vel_y=(0.5, 1.0),
+        ang_vel_z=(0.0, 0.0),
+    ),
+    limit_ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
+        lin_vel_x=(0.0, 0.0),
+        lin_vel_y=(0.5, 1.0),
+        ang_vel_z=(0.0, 0.0),
+    ),
+)
+\end{lstlisting}
+
+The reward weights were also adjusted for rough terrain. The linear velocity tracking reward was increased
+to encourage stronger command following, while action-rate, roll, pitch-rate, foot air-time variance, foot
+height, and undesired-contact penalties were used to discourage unstable terrain interactions. A
+body-frame foot-height penalty was added so that the legs maintained useful clearance over steps and
+uneven surfaces.
+
+\begin{lstlisting}[language=Python,caption={Selected rough-terrain reward terms.}]
+track_lin_vel_xy = RewTerm(
+    func=mdp.track_lin_vel_xy_exp,
+    weight=4.0,
+    params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
+)
+
+roll_penalty = RewTerm(func=mdp.roll_penalty, weight=-1.0)
+pitch_penalty = RewTerm(func=mdp.pitch_rate_penalty, weight=-1.0)
+
+air_time_variance = RewTerm(
+    func=mdp.air_time_variance_penalty,
+    weight=-0.75,
+    params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_toe")},
+)
+
+feet_height_body = RewTerm(
+    func=mdp.feet_height_body,
+    weight=-2.0,
+    params={
+        "command_name": "base_velocity",
+        "target_height": 0.15,
+        "tanh_mult": 8.0,
+        "asset_cfg": SceneEntityCfg("robot", body_names=[".*_toe"]),
+    },
+)
+\end{lstlisting}
+
+\subsection{Play Configuration for Terrain Inspection}
+
+The play configuration was reduced to a small number of environments so the trained policy could be
+inspected visually. During play, the environment uses \texttt{4} robots and a \texttt{4 \(\times\) 4}
+terrain layout, and the command ranges are set directly to the final limit ranges. This makes it easier to
+observe the robot crossing slopes, rough patches, and stair terrain without launching the full training
+batch.
+
+\begin{lstlisting}[language=Python,caption={Reduced play configuration for rough-terrain inspection.}]
+class RobotPlayEnvCfg(RobotEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.num_envs = 4
+        self.scene.terrain.terrain_generator.num_rows = 4
+        self.scene.terrain.terrain_generator.num_cols = 4
+        self.commands.base_velocity.ranges = (
+            self.commands.base_velocity.limit_ranges
+        )
+\end{lstlisting}
+
+Overall, the rough-terrain extension was implemented by taking the already working Trakr flat locomotion
+task and replacing the flat-only terrain distribution with a mixed generated terrain curriculum. The robot
+asset, observation structure, contact sensors, action space, and PPO runner remained largely the same,
+while the terrain generator, command range, reward weights, environment count, and play layout were
+modified to train the Trakr policy on random roughness, slopes, ascending stairs, and descending stairs.

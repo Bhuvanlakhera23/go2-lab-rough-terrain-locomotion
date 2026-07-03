@@ -1,0 +1,13 @@
+{
+    "description": "Very Low Friction + Random Rough",
+    "timestamp": "2026-06-26_12-17-39",
+    "total_terminals": 103,
+    "total_timeout": 51,
+    "total_base_contact": 3,
+    "total_bad_orientation": 52,
+    "timeout_fraction": 0.49514563106796117,
+    "base_contact_fraction": 0.02912621359223301,
+    "bad_orientation_fraction": 0.5048543689320388,
+    "avg_vel_error": 0.3219007176629613,
+    "avg_yaw_error": 0.2518000082855814
+}

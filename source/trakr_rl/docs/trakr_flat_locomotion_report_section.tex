@@ -1,0 +1,144 @@
+\section{Adding the Trakr Flat Locomotion Task to \texttt{unitree\_rl\_lab}}
+
+The Trakr flat locomotion task was added as a new Isaac Lab extension package inside the existing
+\texttt{unitree\_rl\_lab} style repository. Instead of modifying the Unitree Go2 task in-place, I created
+a separate package named \texttt{trakr\_rl} under \texttt{source/trakr\_rl}. This kept the Trakr robot
+asset, task registration, locomotion configuration, reward terms, and helper scripts isolated from the
+original Unitree environments while still reusing the same manager-based reinforcement learning pipeline,
+RSL-RL training scripts, and deployment/export flow.
+
+\subsection{Extension and Task Registration}
+
+The Trakr task is exposed to Isaac Lab through Gymnasium registration. The package initializer
+\texttt{trakr\_rl/tasks/\_\_init\_\_.py} imports all task subpackages using Isaac Lab's package import
+utility, which causes the robot task registration files to run when the extension is loaded. The flat
+locomotion task is registered in
+\texttt{trakr\_rl/tasks/locomotion/robots/trakr/\_\_init\_\_.py} with the environment id
+\texttt{Trakr-Velocity}. This registration maps the id to Isaac Lab's
+\texttt{ManagerBasedRLEnv}, points the training configuration to \texttt{RobotEnvCfg}, points the play
+configuration to \texttt{RobotPlayEnvCfg}, and uses the shared PPO runner configuration in
+\texttt{trakr\_rl.tasks.locomotion.agents.rsl\_rl\_ppo\_cfg}.
+
+This design makes the task discoverable by the existing command-line workflow. After installing the
+extension with \texttt{./trakr\_rl.sh --install}, the environment can be trained and played using the same
+script structure as the Unitree tasks:
+
+\begin{verbatim}
+./trakr_rl.sh --train --task Trakr-Velocity
+./trakr_rl.sh --play  --task Trakr-Velocity
+\end{verbatim}
+
+\subsection{Trakr Robot Asset Configuration}
+
+The robot description is defined in \texttt{trakr\_rl/assets/robots/trakr.py}. I added a
+\texttt{TrakrArticulationCfg} and used a USD-based spawn configuration for the Trakr model. The
+configuration points to the inspected \texttt{trakr\_imu.usd} asset, enables contact sensors, and sets the
+rigid body and articulation properties required by Isaac Lab. The rigid body parameters were adapted from
+the earlier Trakr legged RL setup, while the articulation solver settings follow the Unitree Go2-style
+configuration.
+
+The Trakr-specific initial state and actuator model were also defined in this file. The default base
+height is set to \texttt{0.255 m}, all joints start from a neutral standing pose, and a DC motor actuator
+configuration is applied to all adduction, hip, and knee joints. The motor limits are configured with
+\texttt{23.5 Nm} effort and saturation limits, \texttt{30 rad/s} velocity limit, \texttt{20.0} stiffness,
+and \texttt{1.0} damping. I also listed the SDK joint ordering explicitly:
+\texttt{LB}, \texttt{LF}, \texttt{RB}, and \texttt{RF}, each with adduction, hip, and knee joints. This
+was necessary because the policy, deployment code, and USD articulation must agree on joint naming and
+ordering.
+
+\subsection{Flat Environment Scene}
+
+The flat task environment is implemented in
+\texttt{trakr\_rl/tasks/locomotion/robots/trakr/velocity\_env\_cfg.py}. The scene configuration replaces
+the Unitree robot with \texttt{TRAKR\_CFG} and places it at the prim path
+\texttt{\{ENV\_REGEX\_NS\}/trakr}. I updated all Trakr-specific prim and body names after inspecting the
+USD stage in Isaac Sim. For example, the base body is referenced as \texttt{base\_link}, the height scanner
+uses \texttt{\{ENV\_REGEX\_NS\}/trakr/trakr/base\_link}, and contact sensors are attached under
+\texttt{\{ENV\_REGEX\_NS\}/trakr/trakr/.*}. These changes were important because the original Go2 task
+uses different body names and prim paths.
+
+Although the terrain is created through Isaac Lab's terrain generator interface, the flat locomotion task
+uses only a plane sub-terrain. This keeps the training objective focused on learning a stable flat-ground
+velocity tracking gait before moving to rough terrain. The scene uses a generated terrain with an
+\texttt{8 m \(\times\) 8 m} tile size, a large border, friction set to \texttt{1.0}, and a marble visual
+material from the Isaac Lab Nucleus assets. The environment runs \texttt{512} parallel environments for
+training and \texttt{32} environments for play.
+
+\subsection{MDP Design}
+
+The action space is a joint position action over all Trakr joints. The action scale is \texttt{0.25}, and
+the default joint offsets are used so that policy outputs are interpreted relative to the nominal standing
+configuration. The policy observation group contains angular velocity, projected gravity, commanded base
+velocity, relative joint position, relative joint velocity, and the previous action. A history length of
+\texttt{5} is used and observation corruption is enabled, which gives the policy short temporal context
+while improving robustness to sensor noise. The critic receives privileged observations, including base
+linear velocity and joint effort, in addition to the policy terms.
+
+Velocity commands are generated with a custom \texttt{UniformLevelVelocityCommandCfg}. This extends Isaac
+Lab's uniform velocity command configuration with \texttt{limit\_ranges}, allowing the curriculum to start
+with a small command range and gradually expand it. For the flat task, the initial command range is
+\texttt{[-0.1, 0.1] m/s} in both linear directions and \texttt{[-1, 1] rad/s} in yaw. The curriculum can
+increase the limits up to \texttt{[-1.0, 1.0] m/s} in the forward direction,
+\texttt{[-0.4, 0.4] m/s} laterally, and \texttt{[-1.0, 1.0] rad/s} in yaw.
+
+\subsection{Events, Rewards, and Terminations}
+
+The event configuration randomizes physical properties at startup and reset to reduce overfitting to a
+single simulation instance. At startup, rigid body friction is sampled between \texttt{0.3} and
+\texttt{1.2}, restitution is sampled between \texttt{0.0} and \texttt{0.15}, and base mass is perturbed by
+an additive range of \texttt{[-1.0, 3.0] kg}. During resets, the base pose is randomized in position and
+yaw, joint velocities are randomized, and interval pushes are applied by setting base velocity in the
+\(x\)- and \(y\)-directions.
+
+The reward function follows the standard velocity-tracking structure from the Unitree locomotion task, but
+the weights and additional penalties were adjusted for Trakr. Positive reward terms track commanded
+linear and yaw velocity. Penalties discourage vertical base velocity, roll and pitch instability, excessive
+joint velocity, acceleration, torque, action rate, energy use, joint limit violations, foot sliding,
+uneven air time, and undesired contacts on non-foot bodies. I added custom reward utilities in
+\texttt{trakr\_rl/tasks/locomotion/mdp/rewards.py}, including energy usage, roll penalty, pitch-rate
+penalty, air-time variance, and foot-height terms. These terms helped shape the learned gait toward stable
+flat locomotion while avoiding unstable body oscillations.
+
+Episodes terminate on timeout, base contact, or excessive body orientation. The base-contact termination
+uses \texttt{base\_link}, matching the Trakr USD body name, and the bad-orientation termination uses a
+limit angle of \texttt{0.8 rad}. This prevents failed rollovers or body collisions from continuing to
+contribute poor trajectories to the PPO update.
+
+\subsection{Training Configuration}
+
+The PPO runner is defined in
+\texttt{trakr\_rl/tasks/locomotion/agents/rsl\_rl\_ppo\_cfg.py}. I reused the RSL-RL on-policy runner
+interface with \texttt{32} steps per environment, a save interval of \texttt{100}, and actor--critic
+networks of size \texttt{[256, 128, 64]} using ELU activations. The PPO algorithm uses a clipped objective
+with \texttt{0.2} clipping, \texttt{0.01} entropy coefficient, \texttt{0.99} discount factor,
+\texttt{0.95} GAE parameter, adaptive learning rate, and \texttt{1e-3} initial learning rate. Trained
+checkpoints and exported policies are stored under \texttt{logs/rsl\_rl/trakr\_velocity}, confirming that
+the flat Trakr task was integrated into the same training and export workflow as the original
+\texttt{unitree\_rl\_lab} tasks.
+
+\begin{table}[h]
+    \centering
+    \caption{Main files added or modified for the Trakr flat locomotion task.}
+    \begin{tabular}{p{0.38\linewidth} p{0.52\linewidth}}
+        \hline
+        \textbf{File} & \textbf{Purpose} \\
+        \hline
+        \texttt{source/trakr\_rl} & New Isaac Lab extension package for Trakr tasks. \\
+        \texttt{assets/robots/trakr.py} & Defines the Trakr USD articulation, initial pose, actuators, and joint ordering. \\
+        \texttt{tasks/locomotion/robots/trakr/\_\_init\_\_.py} & Registers the flat task as \texttt{Trakr-Velocity}. \\
+        \texttt{tasks/locomotion/robots/trakr/velocity\_env\_cfg.py} & Defines the flat scene, observations, actions, commands, rewards, events, curriculum, and terminations. \\
+        \texttt{tasks/locomotion/mdp/rewards.py} & Adds Trakr-specific reward and penalty terms. \\
+        \texttt{tasks/locomotion/mdp/curriculums.py} & Adds command range curriculum logic. \\
+        \texttt{tasks/locomotion/mdp/commands/velocity\_command.py} & Extends velocity command configuration with curriculum limit ranges. \\
+        \texttt{tasks/locomotion/agents/rsl\_rl\_ppo\_cfg.py} & Defines the PPO runner and actor--critic settings. \\
+        \texttt{trakr\_rl.sh} & Provides install, list, train, and play entry points for the Trakr extension. \\
+        \hline
+    \end{tabular}
+    \label{tab:trakr_flat_task_files}
+\end{table}
+
+Overall, the Trakr flat locomotion task was integrated by following the same modular structure as the
+Unitree locomotion environments: a registered Gymnasium task id, a robot articulation asset, a
+manager-based environment configuration, custom MDP terms, and an RSL-RL PPO runner. The main adaptation
+work was replacing Go2-specific robot assumptions with Trakr USD prim paths, body names, joint names,
+actuator parameters, and reward shaping suitable for the Trakr morphology.

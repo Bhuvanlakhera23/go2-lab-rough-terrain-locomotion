@@ -1,0 +1,13 @@
+{
+    "description": "Rough Stairs + Very Low Friction",
+    "timestamp": "2026-06-26_12-42-16",
+    "total_terminals": 32,
+    "total_timeout": 6,
+    "total_base_contact": 1,
+    "total_bad_orientation": 25,
+    "timeout_fraction": 0.1875,
+    "base_contact_fraction": 0.03125,
+    "bad_orientation_fraction": 0.78125,
+    "avg_vel_error": 0.431205082556297,
+    "avg_yaw_error": 0.24164722577251238
+}

@@ -1,0 +1,13 @@
+{
+    "description": "Very High Friction + Steep Slopes",
+    "timestamp": "2026-06-26_11-47-28",
+    "total_terminals": 101,
+    "total_timeout": 52,
+    "total_base_contact": 0,
+    "total_bad_orientation": 49,
+    "timeout_fraction": 0.5148514851485149,
+    "base_contact_fraction": 0.0,
+    "bad_orientation_fraction": 0.48514851485148514,
+    "avg_vel_error": 0.21336989832066355,
+    "avg_yaw_error": 0.12321386424203713
+}

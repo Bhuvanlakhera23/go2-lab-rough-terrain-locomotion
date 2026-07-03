@@ -1,0 +1,13 @@
+{
+    "description": "exit",
+    "timestamp": "2026-06-26_16-39-06",
+    "total_terminals": 114,
+    "total_timeout": 25,
+    "total_base_contact": 2,
+    "total_bad_orientation": 87,
+    "timeout_fraction": 0.21929824561403508,
+    "base_contact_fraction": 0.017543859649122806,
+    "bad_orientation_fraction": 0.7631578947368421,
+    "avg_vel_error": 0.3344293429490623,
+    "avg_yaw_error": 0.1819433010089288
+}

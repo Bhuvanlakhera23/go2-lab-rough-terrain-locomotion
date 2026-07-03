@@ -287,7 +287,7 @@ def joint_mirror(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, mirror_joint
 
 def stable_progress(
     env: ManagerBasedRLEnv,
-    command_name="base_velocity",
+    command_name: str ="base_velocity",
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
 
