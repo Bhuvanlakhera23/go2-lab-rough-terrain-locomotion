@@ -1,11 +1,11 @@
-"""Omnidirectional flat prior used to seed the rough AsymPPO actor."""
+"""Omnidirectional flat prior used to seed the rough terrain locomotion actor."""
 
 from __future__ import annotations
 
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.utils import configclass
 
-from go2_rough.envs.asymppo import command_curriculums
+from go2_rough.envs.terrain_locomotion import command_curriculums
 from go2_rough.envs.priors.flat_forward_prior_cfg import Go2FlatForwardPriorEnvCfg
 
 

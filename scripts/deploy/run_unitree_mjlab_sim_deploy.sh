@@ -41,7 +41,7 @@ autostart injection. Use the wireless remote for:
   L2 + B   -> Passive
 
 The active runtime is intentionally restricted to:
-  go2_blind_rough_asymppo_mjlab_v1_candidate
+  go2_terrain_locomotion_steps_v1_candidate
 
 The 'monitor' mode is a read-only LowState/LowCmd subscriber. Run it in a
 separate terminal while the hardware controller is active.
@@ -55,7 +55,7 @@ Examples:
   $0 hardware wifi
   $0 hardware wifi wlx8c86dd5c83c1
   $0 dds-probe wifi
-  $0 monitor wifi asymppo_wifi
+  $0 monitor wifi terrain_locomotion_wifi
   $0 network-status auto
 EOF
 }
@@ -104,12 +104,12 @@ case "${1:-}" in
     ;;
   activate)
     if [[ -n "${2:-}" && "${2}" != "asym" ]]; then
-      echo "Only the AsymPPO candidate is available from the active launcher." >&2
+      echo "Only the terrain locomotion candidate is available from the active launcher." >&2
       echo "Legacy candidates remain archived but are intentionally not switchable here." >&2
       exit 2
     fi
-    bundle="${ASYMPPO_BUNDLE:-${REPO_ROOT}/artifacts/exported/go2_blind_rough_asymppo_mjlab_v1_candidate}"
-    runtime_name="go2_blind_rough_asymppo_mjlab_v1_candidate"
+    bundle="${TERRAIN_BUNDLE:-${REPO_ROOT}/artifacts/exported/go2_terrain_locomotion_steps_v1_candidate}"
+    runtime_name="go2_terrain_locomotion_steps_v1_candidate"
     exec "${MUJOCO_PYTHON}" \
       "${REPO_ROOT}/scripts/deploy/prepare_unitree_rl_mjlab_go2_runtime.py" \
       --bundle-dir "${bundle}" \
@@ -228,7 +228,7 @@ case "${1:-}" in
     ;;
   monitor)
     selector="${2:-ethernet}"
-    label="${3:-asymppo}"
+    label="${3:-terrain_locomotion}"
     explicit_interface="${4:-}"
     network="$(go2_resolve_network_interface "${selector}" "${explicit_interface}")"
     go2_validate_network_interface "${network}"

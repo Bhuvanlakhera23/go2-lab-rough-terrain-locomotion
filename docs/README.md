@@ -1,11 +1,8 @@
-# Docs
+# Documentation Index
 
-- `ARCHITECTURE.md`: actor, critic, and observation contract
-- `DEPENDENCIES.md`: included code, external dependencies, and asset contract
-- `REPRODUCTION.md`: end-to-end train-to-deploy reproduction path
-- `TRAINING.md`: flat prior and rough AsymPPO training
-- `RUN_COMMANDS.md`: copy-paste command reference for the active AsymPPO lane
-- `DEPLOYMENT.md`: deployment contract and safety order
-- `VALIDATION.md`: simulator and hardware validation gates
-- `UNITREE_MJLAB_RUNTIME_BUILD.md`: optional C++ Unitree MJLAB FSM runtime patch/build/recovery flow
-- `LIMITATIONS.md`: what this branch does not try to solve
+- `TRAINING.md`: flat -> rough -> stairs training stages.
+- `VALIDATION.md`: bundle, parity, MuJoCo, and FSM validation gates.
+- `DEPLOYMENT.md`: export and real-Go2 bring-up.
+- `RUN_COMMANDS.md`: copy-paste command reference.
+- `DEPENDENCIES.md`: external dependency boundary.
+- `UNITREE_MJLAB_RUNTIME_BUILD.md`: C++ FSM runtime build and patch notes.

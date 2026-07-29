@@ -1,33 +1,17 @@
-# Active AsymPPO Run Commands
-
-This document contains the standalone command path for the active
-AsymPPO lane.
-
-## Environment
+# Production Run Commands
 
 ```bash
 export REPO=/path/to/go2-lab-rough-terrain-locomotion
 export ISAACLAB_ROOT=/path/to/IsaacLab
 export GO2_ETH_IF=eth0
-export ASYMPPO_CKPT=~/isaaclab_logs/go2_blind_rough_asymppo_mjlab_v1/model_1999.pt
-export ASYMPPO_BUNDLE=$REPO/artifacts/exported/go2_blind_rough_asymppo_mjlab_v1_candidate
+export MUJOCO_PYTHON=python
+export TERRAIN_STEPS_CKPT=~/isaaclab_logs/go2_terrain_locomotion_stairs_v1/model_2999.pt
+export TERRAIN_BUNDLE=$REPO/artifacts/exported/go2_terrain_locomotion_steps_v1_candidate
 export GO2_MUJOCO_MODEL=/path/to/unitree_go2/scene.xml
 export UNITREE_SDK2PY_ROOT=$REPO/third_party/unitree_sdk2py
 ```
 
-For hardware DDS tools, install CycloneDDS in the hardware Python environment
-and verify the vendored SDK import:
-
-```bash
-cd "$REPO"
-python -m pip install 'cyclonedds==0.10.2'
-export UNITREE_SDK2PY_ROOT="$REPO/third_party/unitree_sdk2py"
-python -c "import sys, os; sys.path.insert(0, os.environ['UNITREE_SDK2PY_ROOT']); import unitree_sdk2py; print('unitree_sdk2py OK')"
-```
-
-## Workstation Preflight
-
-Run these from this repo:
+## Preflight
 
 ```bash
 cd "$REPO"
@@ -35,199 +19,100 @@ bash scripts/isaaclab_user.sh -p scripts/doctor_isaaclab.py
 bash scripts/isaaclab_user.sh -p scripts/check_tasks.py
 ```
 
-## Training
-
-Flat prior:
+## Stage 1: Flat Prior
 
 ```bash
-cd "$REPO"
 bash scripts/isaaclab_user.sh -p scripts/train_flat_prior.py \
+  --task Go2-Terrain-Flat-Prior-V1 \
   --headless \
-  --log-dir ~/isaaclab_logs/go2_flat_mjlab_prior_v1
+  --log-dir ~/isaaclab_logs/go2_terrain_flat_prior_v1
 ```
 
-Rough AsymPPO:
+## Stage 2: Rough / Slopes
 
 ```bash
-cd "$REPO"
-bash scripts/isaaclab_user.sh -p scripts/train_asymppo.py \
-  --flat-prior-checkpoint ~/isaaclab_logs/go2_flat_mjlab_prior_v1/model_1499.pt \
+bash scripts/isaaclab_user.sh -p scripts/train_terrain_policy.py \
+  --stage rough \
+  --flat-prior-checkpoint ~/isaaclab_logs/go2_terrain_flat_prior_v1/model_1499.pt \
   --headless \
-  --log-dir ~/isaaclab_logs/go2_blind_rough_asymppo_mjlab_v1
+  --log-dir ~/isaaclab_logs/go2_terrain_locomotion_rough_v1
 ```
 
-## Bundle Export
+## Stage 3: Stairs / Inverted Stairs
 
 ```bash
-cd "$REPO"
+bash scripts/isaaclab_user.sh -p scripts/train_terrain_policy.py \
+  --stage stairs \
+  --rough-checkpoint ~/isaaclab_logs/go2_terrain_locomotion_rough_v1/model_1999.pt \
+  --headless \
+  --log-dir ~/isaaclab_logs/go2_terrain_locomotion_stairs_v1
+```
+
+## Export Candidate
+
+```bash
 bash scripts/isaaclab_user.sh -p scripts/deploy/export_policy.py \
-  --policy-name go2_blind_rough_asymppo_mjlab_v1_candidate \
-  --checkpoint "$ASYMPPO_CKPT" \
-  --task Go2-Blind-Rough-MJLAB-AsymPPO-V1 \
-  --phase blind-rough-mjlab-asymppo-v1 \
+  --policy-name go2_terrain_locomotion_steps_v1_candidate \
+  --checkpoint "$TERRAIN_STEPS_CKPT" \
+  --task Go2-Terrain-Locomotion-Stairs-V1 \
+  --phase terrain-locomotion-stairs-v1 \
+  --bundle-dir "$TERRAIN_BUNDLE" \
   --policy-kind blind_history_policy \
   --observation-groups policy,policy_history \
+  --policy-history-length 100 \
+  --command-lin-vel-x -0.8 0.8 \
+  --command-lin-vel-y -0.3 0.3 \
+  --command-ang-vel-z -0.6 0.6 \
   --format torchscript \
   --format onnx
 ```
 
-## Parity And Rehearsal
+## Deployment Gate
 
 ```bash
-cd "$REPO"
-python scripts/deploy/validate_bundle.py \
-  --bundle-dir "$ASYMPPO_BUNDLE"
-```
-
-```bash
-cd "$REPO"
-python scripts/deploy/validate_policy_inference_parity.py \
-  --bundle-dir "$ASYMPPO_BUNDLE" \
-  --output-dir artifacts/deployment_validation/golden_inference
-```
-
-```bash
-cd "$REPO"
-bash scripts/isaaclab_user.sh -p scripts/deploy/play_deploy_policy.py \
-  --bundle-dir "$ASYMPPO_BUNDLE" \
-  --task Go2-Blind-Rough-MJLAB-AsymPPO-V1 \
-  --num-envs 16 \
-  --max-steps 500 \
-  --compare-source
-```
-
-## MuJoCo Gate
-
-```bash
-cd "$REPO"
 python scripts/deploy/run_deployment_validation_gate.py \
-  --bundle-dir "$ASYMPPO_BUNDLE" \
+  --bundle-dir "$TERRAIN_BUNDLE" \
   --expected-policy-obs-dim 45 \
   --expected-history-length 100 \
+  --expected-action-dim 12 \
   --model-path "$GO2_MUJOCO_MODEL"
 ```
 
-Execute the local MuJoCo bridge:
+## MuJoCo Terrain Validation
 
 ```bash
-cd "$REPO"
-python scripts/deploy/run_sim2sim.py \
-  --bundle-dir "$ASYMPPO_BUNDLE" \
-  --model-path "$GO2_MUJOCO_MODEL" \
-  --execute-runtime \
-  --command-x 0.5 \
-  --max-steps 900
+bash scripts/deploy/run_terrain_locomotion_model5099_mujoco_validation.sh
 ```
 
-## Hardware Bring-Up
-
-Read-only DDS probe first:
+## Unitree MJLAB C++ FSM
 
 ```bash
-cd "$REPO"
-python scripts/deploy/probe_go2_readonly.py \
-  --net-if "$GO2_ETH_IF" \
-  --duration-s 5 \
-  --subscribe-sport
-```
-
-Read-only monitor:
-
-```bash
-cd "$REPO"
-python scripts/deploy/monitor_go2_realtime.py \
-  --net-if "$GO2_ETH_IF" \
-  --subscribe-lowcmd \
-  --jsonl-out artifacts/go2_realtime_monitor/asymppo_walk.jsonl
-```
-
-Dry-run hardware contract:
-
-```bash
-cd "$REPO"
-python scripts/deploy/run_go2_hardware.py \
-  --bundle-dir "$ASYMPPO_BUNDLE" \
-  --net-if "$GO2_ETH_IF" \
-  --dry-run
-```
-
-Stance-only bring-up:
-
-```bash
-cd "$REPO"
-python scripts/deploy/run_go2_hardware.py \
-  --bundle-dir "$ASYMPPO_BUNDLE" \
-  --net-if "$GO2_ETH_IF" \
-  --mode-switch-script /path/to/mode_switch.py \
-  --stance-only \
-  --duration-s 5
-```
-
-## Unitree RL MJLAB C++ FSM Runtime
-
-This is the closest runtime to the validated deployment path. It requires the
-external `unitree_rl_mjlab` C++ repository, but the patch/build/activation
-flow is owned here.
-
-Clone and patch the external runtime:
-
-```bash
-cd "$REPO"
-git clone https://github.com/unitreerobotics/unitree_rl_mjlab.git \
-  reference_repos/unitree_rl_mjlab
-
-cd reference_repos/unitree_rl_mjlab
-git apply ../../patches/unitree_rl_mjlab/go2_scripted_controller.patch
-cd "$REPO"
-```
-
-Build the controller and simulator:
-
-```bash
-cd "$REPO"
 bash scripts/deploy/build_unitree_mjlab_runtime.sh all
-```
-
-Stage the exported AsymPPO bundle into the C++ runtime and validate the FSM
-contract:
-
-```bash
-cd "$REPO"
 bash scripts/deploy/run_unitree_mjlab_sim_deploy.sh activate
 bash scripts/deploy/run_unitree_mjlab_sim_deploy.sh validate
 ```
 
-Run sim/controller in two terminals:
+Two-terminal simulation:
 
 ```bash
-# terminal 1
-cd "$REPO"
 bash scripts/deploy/run_unitree_mjlab_sim_deploy.sh controller
 ```
 
 ```bash
-# terminal 2
-cd "$REPO"
 bash scripts/deploy/run_unitree_mjlab_sim_deploy.sh sim
 ```
 
-C++ FSM hardware path:
+Hardware preflight and launch:
 
 ```bash
-cd "$REPO"
 bash scripts/deploy/run_unitree_mjlab_sim_deploy.sh dds-probe ethernet
 bash scripts/deploy/run_unitree_mjlab_sim_deploy.sh hardware ethernet
 ```
 
-While hardware is running, monitor LowState/LowCmd in another terminal:
-
-```bash
-cd "$REPO"
-bash scripts/deploy/run_unitree_mjlab_sim_deploy.sh monitor ethernet asymppo_walk
-```
-
-Detailed runtime recovery notes:
+Remote sequence:
 
 ```text
-docs/UNITREE_MJLAB_RUNTIME_BUILD.md
+L2 + up  -> FixStand
+R2 + A   -> Velocity policy
+L2 + B   -> Passive / stop
 ```

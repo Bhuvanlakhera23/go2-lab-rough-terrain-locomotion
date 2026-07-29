@@ -1,4 +1,4 @@
-"""Usable-range rough-terrain omni branch for the active AsymPPO path."""
+"""Usable-range rough-terrain omni branch with a narrower practical envelope."""
 
 from __future__ import annotations
 
@@ -7,15 +7,15 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
-from go2_rough.envs.asymppo import command_curriculums
-from go2_rough.envs.asymppo.rough_base_cfg import air_time_variance_penalty
-from go2_rough.envs.asymppo.rough_privileged_history_cfg import Go2AsymPpoPrivilegedHistoryEnvCfg
-from go2_rough.envs.asset_contract import foot_body_regex
-
+from go2_rough.envs.terrain_locomotion import command_curriculums
+from go2_rough.envs.terrain_locomotion.rough_base_cfg import air_time_variance_penalty
+from go2_rough.envs.terrain_locomotion.rough_privileged_history_cfg import (
+    Go2TerrainPrivilegedHistoryEnvCfg,
+)
 
 @configclass
-class Go2AsymPpoRoughOmniEnvCfg(Go2AsymPpoPrivilegedHistoryEnvCfg):
-    """Rough omni candidate optimized for a strong deployable range."""
+class Go2AsymPpoRoughOmniEnvCfg(Go2TerrainPrivilegedHistoryEnvCfg):
+    """Rough omni candidate optimized for a strong usable range instead of max paper range."""
 
     def __post_init__(self):
         super().__post_init__()
@@ -53,7 +53,7 @@ class Go2AsymPpoRoughOmniEnvCfg(Go2AsymPpoPrivilegedHistoryEnvCfg):
             func=air_time_variance_penalty,
             weight=-0.05,
             params={
-                "sensor_cfg": SceneEntityCfg("contact_forces", body_names=foot_body_regex()),
+                "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
                 "command_name": "base_velocity",
                 "command_threshold": 0.2,
                 "min_recorded_air_time": 0.05,
@@ -61,4 +61,4 @@ class Go2AsymPpoRoughOmniEnvCfg(Go2AsymPpoPrivilegedHistoryEnvCfg):
             },
         )
 
-        print("\n========== GO2 BLIND ROUGH ASYMPPO OMNI V1 ==========\n")
+        print("\n========== C1 USABLE ROUGH OMNI V1 ==========\n")

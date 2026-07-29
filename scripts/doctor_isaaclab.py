@@ -59,7 +59,7 @@ def main() -> None:
     except Exception as exc:
         _fail(f"go2_rough import failed: {exc}")
 
-    for task_id in ("Go2-Flat-MJLAB-Prior-V1", "Go2-Blind-Rough-MJLAB-AsymPPO-V1"):
+    for task_id in ("Go2-Terrain-Flat-Prior-V1", "Go2-Terrain-Locomotion-Rough-V1", "Go2-Terrain-Locomotion-Stairs-V1"):
         try:
             gym.spec(task_id)
         except Exception as exc:

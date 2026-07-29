@@ -18,7 +18,7 @@ DEFAULT_BUNDLE = (
     REPO_ROOT
     / "artifacts"
     / "exported"
-    / "go2_blind_rough_asymppo_mjlab_v1_candidate"
+    / "go2_terrain_locomotion_steps_v1_candidate"
 )
 DEFAULT_GO2_DEPLOY_DIR = (
     REPO_ROOT / "reference_repos" / "unitree_rl_mjlab" / "deploy" / "robots" / "go2"

@@ -1,4 +1,4 @@
-"""Blind rough-terrain env with flattened deployable proprioceptive history."""
+"""Blind rough-terrain env with flattened proprioceptive history."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import copy
 
 from isaaclab.utils import configclass
 
-from go2_rough.envs.asymppo.rough_base_cfg import Go2AsymPpoRoughBaseEnvCfg
+from go2_rough.envs.terrain_locomotion.rough_base_cfg import Go2AsymPpoRoughBaseEnvCfg
 
 
 @configclass

@@ -1,23 +1,23 @@
-"""AsymPPO blind history env with critic-only privileged groups."""
+"""Blind history environment with critic-only terrain and dynamics privilege."""
 
 from __future__ import annotations
 
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.utils import configclass
 
-from go2_rough.envs.asymppo.rough_history_base_cfg import Go2AsymPpoHistoryBaseEnvCfg
+from go2_rough.envs.asset_contract import height_scanner_prim_path
 from go2_rough.envs.privileged_obs import (
     DynamicsPrivilegedObsCfg,
     TerrainPrivilegedObsCfg,
     TrackedRandomizeRigidBodyMass,
     TrackedRandomizeRigidBodyMaterial,
 )
-from go2_rough.envs.asset_contract import height_scanner_prim_path
+from go2_rough.envs.terrain_locomotion.rough_history_base_cfg import Go2AsymPpoHistoryBaseEnvCfg
 
 
 @configclass
-class Go2AsymPpoPrivilegedHistoryEnvCfg(Go2AsymPpoHistoryBaseEnvCfg):
-    """Blind-history actor env with terrain and dynamics privilege for the critic."""
+class Go2TerrainPrivilegedHistoryEnvCfg(Go2AsymPpoHistoryBaseEnvCfg):
+    """Blind history actor with terrain/dynamics signals restricted to critic."""
 
     policy_history_length: int = 100
 
@@ -34,8 +34,6 @@ class Go2AsymPpoPrivilegedHistoryEnvCfg(Go2AsymPpoHistoryBaseEnvCfg):
         )
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
-        # Keep actor observations blind while exposing terrain only through
-        # critic-side privileged groups.
         self.observations.policy.height_scan = None
         self.events.physics_material.func = TrackedRandomizeRigidBodyMaterial
         if self.events.add_base_mass is not None:
@@ -44,4 +42,4 @@ class Go2AsymPpoPrivilegedHistoryEnvCfg(Go2AsymPpoHistoryBaseEnvCfg):
         self.observations.terrain_privileged = TerrainPrivilegedObsCfg()
         self.observations.dynamics_privileged = DynamicsPrivilegedObsCfg()
 
-        print("\n========== GO2 ASYMPPO BLIND HISTORY ==========\n")
+        print("\n========== GO2 TERRAIN LOCOMOTION PRIVILEGED HISTORY ==========\n")

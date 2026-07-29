@@ -1,4 +1,4 @@
-"""Policy configuration for the active temporal AsymPPO actor."""
+"""Policy configuration for the active temporal terrain locomotion actor."""
 
 from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import RslRlPpoActorCriticCfg

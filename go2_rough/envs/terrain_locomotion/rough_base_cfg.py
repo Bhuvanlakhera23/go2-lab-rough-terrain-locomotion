@@ -1,4 +1,4 @@
-"""Blind proprioceptive rough-terrain AsymPPO baseline.
+"""Blind proprioceptive rough-terrain baseline.
 
 This configuration is the active rough blind baseline.
 
@@ -13,6 +13,9 @@ blind ladder, but strips the task down to a clean deployable blind baseline:
 
 from __future__ import annotations
 
+import os
+
+#from reference_repos.unitree_rl_lab.source.unitree_rl_lab.unitree_rl_lab.tasks.locomotion.mdp.rewards import feet_height_body
 import torch
 
 from isaaclab.envs import mdp as base_mdp
@@ -25,13 +28,21 @@ import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 from isaaclab_tasks.manager_based.locomotion.velocity.config.go2.rough_env_cfg import (
     UnitreeGo2RoughEnvCfg,
 )
+from typing import TYPE_CHECKING
 
-from go2_rough.envs.asset_contract import base_body_name, foot_body_regex, go2_usd_path, print_asset_contract
+try:
+    from isaaclab.utils.math import quat_apply_inverse
+except ImportError:
+    from isaaclab.utils.math import quat_rotate_inverse as quat_apply_inverse
 
+from isaaclab.assets import Articulation, RigidObject
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedRLEnv
 
 def stand_still_foot_motion_penalty(
     env,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=".*_foot"),
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=foot_body_regex()),
     command_name: str = "base_velocity",
     command_threshold: float = 0.15,
     velocity_threshold: float = 0.2,
@@ -50,7 +61,7 @@ def stand_still_foot_motion_penalty(
 
 def air_time_variance_penalty(
     env,
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces", body_names=".*_foot"),
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces", body_names=foot_body_regex()),
     command_name: str = "base_velocity",
     command_threshold: float = 0.2,
     min_recorded_air_time: float = 0.05,
@@ -78,7 +89,7 @@ def root_height_above_foot_plane_below(
     env,
     minimum_clearance: float,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    foot_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=".*_foot"),
+    foot_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=foot_body_regex()),
 ):
     """Terminate when the base collapses too close to the local foot support plane.
 
@@ -122,6 +133,83 @@ def low_progress_termination(
         & (planar_speed < min_planar_speed)
     )
 
+def stable_progress(
+    env: ManagerBasedRLEnv,
+    command_name: str ="base_velocity",
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+
+    """Rewards progress along commanded direction with stable gait."""
+
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    cmd = env.command_manager.get_command(command_name)
+    cmd_vel = torch.linalg.norm(cmd[:, :2], dim=1)
+
+    cmd_norm = torch.linalg.norm(cmd[:, :2], dim=1, keepdim=True)
+    cmd_dir = cmd[:, :2] / (cmd_norm + 1e-6)
+    cmd_vel = cmd_norm.squeeze(1)
+
+    robot_vel = asset.data.root_lin_vel_b[:, :2]
+
+    lin_vel = torch.sum(robot_vel * cmd_dir,dim=1)
+
+    lin_vel = torch.clamp(lin_vel,min=0.0)
+
+    omega = asset.data.root_ang_vel_b
+
+    pitch_rate = omega[:, 1]
+    roll_rate = omega[:, 0]
+
+    stability = torch.exp(-2.0 * (torch.square(pitch_rate)+torch.square(roll_rate)))
+    return torch.where(cmd_vel>0.1, lin_vel*stability, torch.zeros_like(lin_vel))
+
+def adaptive_swing_recovery(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    velocity_scale: float = 3.0,
+    command_threshold: float = 0.2,
+    lift_scale: float = 2.0,
+) -> torch.Tensor:
+    """Reward morphology-agnostic swing recovery from failed-progress kinematics.
+
+    This term uses only embodiment-neutral signals:
+      - commanded motion intent
+      - achieved progress ratio
+      - distal-body motion relative to the root
+
+    It targets a generic bulldozing pattern by discouraging persistent forward
+    distal motion when progress is poor unless that motion is paired with enough
+    upward swing to indicate obstacle-clearing recovery.
+    """
+
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    command = env.command_manager.get_command(command_name)
+    cmd_xy = command[:, :2]
+    cmd_speed = torch.linalg.norm(cmd_xy, dim=1)
+    moving = (cmd_speed > command_threshold).float()
+
+    cmd_dir = cmd_xy / (cmd_speed.unsqueeze(1) + 1e-6)
+    body_vel = asset.data.root_lin_vel_b[:, :2]
+    progress_speed = torch.sum(body_vel * cmd_dir, dim=1)
+    progress_ratio = torch.clamp(progress_speed / (cmd_speed + 1e-6), -1.0, 1.0)
+    recovery_gate = torch.sigmoid(10.0 * (0.7 - progress_ratio))
+
+    rel_foot_vel = asset.data.body_lin_vel_w[:, asset_cfg.body_ids] - asset.data.root_lin_vel_w.unsqueeze(1)
+    forward_speed = torch.clamp(torch.sum(rel_foot_vel[..., :2] * cmd_dir.unsqueeze(1), dim=-1), min=0.0)
+    upward_speed = torch.clamp(rel_foot_vel[..., 2], min=0.0)
+
+    forward_signal = torch.tanh(velocity_scale * forward_speed)
+    upward_signal = torch.tanh(velocity_scale * upward_speed)
+    lift_gate = torch.sigmoid(lift_scale * (upward_speed - 0.05))
+
+    bulldoze_proxy = forward_signal * (1.0 - lift_gate)
+    recovery_reward = forward_signal * upward_signal * lift_gate
+
+    return moving * recovery_gate * (recovery_reward.mean(dim=1) - bulldoze_proxy.mean(dim=1))
+
 @configclass
 class Go2AsymPpoRoughBaseEnvCfg(UnitreeGo2RoughEnvCfg):
     """Pure proprioceptive locomotion baseline with strong randomization."""
@@ -129,10 +217,11 @@ class Go2AsymPpoRoughBaseEnvCfg(UnitreeGo2RoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        print("\n========== GO2 BLIND ROUGH ASYMPPO BASE ==========\n")
+        print("\n========== GO2 TERRAIN LOCOMOTION ROUGH BASE ==========\n")
         print_asset_contract()
 
-        self.scene.robot.spawn.usd_path = go2_usd_path()
+        if go2_usd_path := os.environ.get("GO2_USD_PATH"):
+            self.scene.robot.spawn.usd_path = go2_usd_path
         self.scene.num_envs = 4096
 
         # Make playback/recording open in a robot-following view by default.
@@ -161,7 +250,6 @@ class Go2AsymPpoRoughBaseEnvCfg(UnitreeGo2RoughEnvCfg):
         self.events.physics_material.params["dynamic_friction_range"] = (0.1, 2.0)
         if self.events.add_base_mass is not None:
             self.events.add_base_mass.params["mass_distribution_params"] = (-2.0, 4.0)
-            self.events.add_base_mass.params["asset_cfg"].body_names = base_body_name()
         self.events.motor_strength = EventTermCfg(
             func=mdp.randomize_actuator_gains,
             mode="startup",
@@ -228,7 +316,6 @@ class Go2AsymPpoRoughBaseEnvCfg(UnitreeGo2RoughEnvCfg):
         self.rewards.dof_acc_l2.weight = -1.0e-7
         self.rewards.dof_pos_limits.weight = -0.05
 
-        self.rewards.feet_air_time.params["sensor_cfg"].body_names = foot_body_regex()
         self.rewards.feet_air_time.weight = 0.5
         self.rewards.feet_slide = RewTerm(
             func=mdp.feet_slide,
@@ -262,5 +349,31 @@ class Go2AsymPpoRoughBaseEnvCfg(UnitreeGo2RoughEnvCfg):
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_hip_joint")},
         )
 
+        # ---------------------------------------------------------------------
+        # Optional stair-learning rewards (disabled by default)
+        # ---------------------------------------------------------------------
+
+        self.rewards.stable_progress = RewTerm(
+            func=stable_progress,
+            weight=0.0,
+            params={
+                "command_name": "base_velocity",
+                "asset_cfg": SceneEntityCfg("robot"),
+            },
+        )
+
+        self.rewards.adaptive_swing_recovery = RewTerm(
+            func=adaptive_swing_recovery,
+            weight=0.0,
+            params={
+                "command_name": "base_velocity",
+                "asset_cfg": SceneEntityCfg("robot", body_names=foot_body_regex()),
+                "velocity_scale": 3.0,
+                "command_threshold": 0.2,
+                "lift_scale": 2.0,
+            },
+        )
+
         # Reduce terrain-coupled and rough-terrain collision shaping.
         self.rewards.undesired_contacts = None
+        

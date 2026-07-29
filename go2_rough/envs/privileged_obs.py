@@ -1,4 +1,4 @@
-"""Critic-only privileged observations used by the AsymPPO path."""
+"""Critic-only privileged observations used by the terrain locomotion path."""
 
 from __future__ import annotations
 

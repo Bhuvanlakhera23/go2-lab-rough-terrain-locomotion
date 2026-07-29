@@ -1,7 +1,8 @@
-"""MJLAB-contract asymmetric PPO rough blind policy config.
+"""Go2 terrain locomotion rough stage.
 
-The actor is deployable and blind. The critic is privileged during asymmetric
-PPO training.
+Stage 2 of the production pipeline trains on rough terrain after the branch-specific
+flat prior is learned.  This task intentionally keeps stairs disabled; stairs
+belong to Stage 3.
 """
 
 from __future__ import annotations
@@ -11,22 +12,20 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 
-from go2_rough.envs.asymppo.rough_omni_cfg import Go2AsymPpoRoughOmniEnvCfg
 from go2_rough.envs.asset_contract import base_body_name
+from go2_rough.envs.terrain_locomotion.rough_omni_cfg import Go2AsymPpoRoughOmniEnvCfg
 from go2_rough.envs.mjlab_contract import MjlabCriticPrivilegedObsCfg, apply_mjlab_policy_contract
 
 
 @configclass
-class Go2BlindRoughMjlabAsymPpoEnvCfg(Go2AsymPpoRoughOmniEnvCfg):
-    """Rough omni baseline with a deploy-honest MJLAB actor contract."""
+class Go2TerrainLocomotionRoughEnvCfg(Go2AsymPpoRoughOmniEnvCfg):
+    """Stage 2: rough/slopes terrain locomotion without stair exposure."""
 
     mjlab_use_gait_phase: bool = False
 
     def __post_init__(self):
         super().__post_init__()
 
-        # Keep the same robot/actuator model as the frozen flat prior. The
-        # mjlab actuator prior is a separate ablation and needs its own flat.
         apply_mjlab_policy_contract(
             self.observations.policy,
             include_gait_phase=self.mjlab_use_gait_phase,
@@ -37,13 +36,9 @@ class Go2BlindRoughMjlabAsymPpoEnvCfg(Go2AsymPpoRoughOmniEnvCfg):
         )
         self.observations.critic_privileged = MjlabCriticPrivilegedObsCfg()
 
-        # Keep the proven deployment dynamics envelope for the clean AsymPPO diagnosis.
-        # The wider kp/kd and COM ablations both suppressed terrain progression.
         self.events.motor_strength.params["stiffness_distribution_params"] = (0.6, 1.4)
         self.events.motor_strength.params["damping_distribution_params"] = (0.6, 1.4)
 
-        # Keep the recovery and COM disturbance pressure from the previous run,
-        # but remove the wide-gain ablation so we isolate gain randomization.
         self.events.push_robot = EventTermCfg(
             func=mdp.push_by_setting_velocity,
             mode="interval",
@@ -70,4 +65,27 @@ class Go2BlindRoughMjlabAsymPpoEnvCfg(Go2AsymPpoRoughOmniEnvCfg):
             },
         )
 
-        print("\n========== GO2 BLIND ROUGH MJLAB ASYMMETRIC PPO ==========\n")
+        self.scene.num_envs = 2048
+
+        cmd = self.commands.base_velocity
+        cmd.ranges.lin_vel_x = (-0.1, 0.1)
+        cmd.ranges.lin_vel_y = (-0.1, 0.1)
+        cmd.ranges.ang_vel_z = (-0.1, 0.1)
+        cmd.limit_ranges.lin_vel_x = (-0.8, 0.8)
+        cmd.limit_ranges.lin_vel_y = (-0.3, 0.3)
+        cmd.limit_ranges.ang_vel_z = (-0.6, 0.6)
+
+        terrain_gen = self.scene.terrain.terrain_generator
+        self.scene.terrain.max_init_terrain_level = 2
+        terrain_gen.sub_terrains["random_rough"].proportion = 0.35
+        terrain_gen.sub_terrains["hf_pyramid_slope"].proportion = 0.15
+        terrain_gen.sub_terrains["hf_pyramid_slope_inv"].proportion = 0.15
+        terrain_gen.sub_terrains["pyramid_stairs"].proportion = 0.0
+        terrain_gen.sub_terrains["pyramid_stairs_inv"].proportion = 0.0
+        terrain_gen.sub_terrains["boxes"].proportion = 0.0
+
+        self.rewards.track_lin_vel_xy_exp.weight = 2.0
+        self.rewards.stable_progress.weight = 0.75
+        self.rewards.adaptive_swing_recovery.weight = 0.0
+
+        print("\n========== GO2 TERRAIN LOCOMOTION ROUGH V1 ==========\n")

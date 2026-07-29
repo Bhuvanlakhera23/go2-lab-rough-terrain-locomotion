@@ -1,4 +1,4 @@
-"""Go2 flat prior backbone used to warm-start the rough AsymPPO actor."""
+"""Go2 flat prior backbone used to warm-start the rough terrain locomotion actor."""
 
 import torch
 from isaaclab.envs import mdp as base_mdp

@@ -1,147 +1,53 @@
 # Training
 
+The repository exposes one staged training pipeline.
+
 ## Stage 1: Flat Prior
 
-Train a flat omnidirectional prior under the same deployable actor observation
-contract used by the rough policy:
+Purpose: learn a clean deployable actor on flat ground under the same 45-D actor
+observation contract used later by rough and stair stages.
 
 ```bash
-export ISAACLAB_ROOT=/path/to/IsaacLab
-
-$ISAACLAB_ROOT/_isaac_sim/python.sh -m pip install --user --no-deps -e .
-
-bash scripts/isaaclab_user.sh -p scripts/doctor_isaaclab.py
-
 bash scripts/isaaclab_user.sh -p scripts/train_flat_prior.py \
+  --task Go2-Terrain-Flat-Prior-V1 \
   --headless \
-  --log-dir ~/isaaclab_logs/go2_flat_mjlab_prior_v1
+  --log-dir ~/isaaclab_logs/go2_terrain_flat_prior_v1
 ```
 
-The flat prior is used only as an actor warmstart. It is not deployed as the
-rough-terrain controller.
+## Stage 2: Rough / Slopes
 
-RSL-RL checkpoints are written inside the chosen `--log-dir`. For the default
-run shape, the warmstart input to Stage 2 is typically the final
-checkpoint:
-
-```text
-~/isaaclab_logs/go2_flat_mjlab_prior_v1/model_1499.pt
-```
-
-## Asset Naming Contract
-
-Training uses the bundled Go2 USD by default:
-
-```text
-assets/robots/go2/go2.usd
-```
-
-Leave these unset for the bundled/default asset:
-
-```text
-base body: base
-foot/contact bodies: .*_foot
-height scanner prim: {ENV_REGEX_NS}/Robot/base
-```
-
-Only set `GO2_USD_PATH` if you intentionally want a different Go2 USD. If that
-USD uses `base_link` and has no separate `*_foot` bodies, set:
+Purpose: warm-start from the flat prior and train the blind history actor on
+rough terrain, random rough patches, pyramid slopes, and inverted slopes.
 
 ```bash
-export GO2_USD_PATH=/path/to/custom/go2.usd
-export GO2_BASE_BODY_NAME=base_link
-export GO2_FOOT_BODY_REGEX='.*_calf'
-export GO2_HEIGHT_SCANNER_PRIM='{ENV_REGEX_NS}/Robot/base_link'
-```
-
-Run `doctor_isaaclab.py` after setting these variables so the active contract
-is printed before training starts.
-
-## Stage 2: Rough AsymPPO
-
-Train the rough policy:
-
-```bash
-bash scripts/isaaclab_user.sh -p scripts/train_asymppo.py \
-  --flat-prior-checkpoint /path/to/flat_prior_checkpoint.pt \
+bash scripts/isaaclab_user.sh -p scripts/train_terrain_policy.py \
+  --stage rough \
+  --flat-prior-checkpoint ~/isaaclab_logs/go2_terrain_flat_prior_v1/model_1499.pt \
   --headless \
-  --log-dir ~/isaaclab_logs/go2_blind_rough_asymppo_mjlab_v1
+  --log-dir ~/isaaclab_logs/go2_terrain_locomotion_rough_v1
 ```
 
-If you do not want warmstart:
+## Stage 3: Stairs
+
+Purpose: fine-tune the rough policy on stairs and inverted stairs only.
 
 ```bash
-bash scripts/isaaclab_user.sh -p scripts/train_asymppo.py \
+bash scripts/isaaclab_user.sh -p scripts/train_terrain_policy.py \
+  --stage stairs \
+  --rough-checkpoint ~/isaaclab_logs/go2_terrain_locomotion_rough_v1/model_1999.pt \
   --headless \
-  --log-dir ~/isaaclab_logs/go2_blind_rough_asymppo_mjlab_v1
+  --log-dir ~/isaaclab_logs/go2_terrain_locomotion_stairs_v1
 ```
 
-Do not add a standalone `/` between command arguments. It will be parsed as an
-unknown argument by the training script.
+## Core Randomization
 
-RSL-RL writes the rough-policy checkpoints under the chosen `--log-dir`. The
-expected export input for the deployment lane is typically the final numbered
-checkpoint:
+- friction: static/dynamic randomized during training
+- base mass: randomized during rough/stair stages
+- motor stiffness and damping scale: `[0.6, 1.4]`
+- pushes: enabled during rough/stair training
+- actor: no base linear velocity, no height scan, no dynamics privilege
+- critic: actor observations plus terrain/dynamics/base-linear-velocity privilege
 
-```text
-~/isaaclab_logs/go2_blind_rough_asymppo_mjlab_v1/model_1999.pt
-```
-
-If you want to inspect the trained policy in IsaacLab, export it, or run the
-MuJoCo validation lane, continue with `docs/REPRODUCTION.md` and
-`docs/RUN_COMMANDS.md`.
-
-For shared `/opt` IsaacLab installs, always launch through
-`scripts/isaaclab_user.sh`. It redirects mutable Kit cache/log/temp files to the
-current user's home directory and exposes Isaac Sim's bundled CUDA libraries to
-PyTorch.
-
-If the doctor reports a user-site `torch`, remove the conflicting user install
-before training. The repo itself should be installed with `--no-deps` so it does
-not replace IsaacLab's bundled PyTorch/CUDA stack.
-
-## IsaacLab Dependency Boundary
-
-This repository does not vendor or pin PyTorch. IsaacLab/Isaac Sim provides the
-compatible `torch`, CUDA and `gymnasium` stack. Install this package into Isaac
-Sim Python with:
-
-```bash
-$ISAACLAB_ROOT/_isaac_sim/python.sh -m pip install --user --no-deps -e .
-```
-
-Do not run plain `pip install -e .` if `pyproject.toml` has dependencies added
-locally. Pulling a different PyTorch/NCCL build into `~/.local` can cause errors
-such as `libtorch_cuda.so: undefined symbol: ncclCommResume`.
-
-## Important Ranges
-
-Command curriculum target:
-
-```text
-vx:  [-0.8, 0.8] m/s
-vy:  [-0.3, 0.3] m/s
-yaw: [-0.6, 0.6] rad/s
-```
-
-Motor gain randomization:
-
-```text
-stiffness scale: [0.6, 1.4]
-damping scale:   [0.6, 1.4]
-```
-
-Push disturbance:
-
-```text
-interval: 6-10 s
-vx impulse command:  [-0.35, 0.35]
-vy impulse command:  [-0.35, 0.35]
-yaw impulse command: [-0.4, 0.4]
-```
-
-## Notes
-
-The successful branch did not rely on extreme gain randomization. Wider gain
-randomization hurt learning in our tests, so this path keeps the narrower
-deployment-proven envelope.
+Do not install repo dependencies into Isaac Sim Python with normal dependency
+resolution. Use `pip install --user --no-deps -e .`; IsaacLab owns PyTorch and
+CUDA compatibility.

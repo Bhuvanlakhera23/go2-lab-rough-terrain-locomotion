@@ -237,9 +237,31 @@ class TemporalBlindActorCritic(ActorCritic):
             target_weight = module[0].weight
             with torch.no_grad():
                 nn.init.xavier_uniform_(target_weight, gain=0.1)
-                shared_in = min(source_weight.shape[1], target_weight.shape[1])
                 shared_out = min(source_weight.shape[0], target_weight.shape[0])
-                target_weight[:shared_out, :shared_in].copy_(source_weight[:shared_out, :shared_in])
+                if source_weight.shape[1] == target_weight.shape[1]:
+                    target_weight[:shared_out].copy_(source_weight[:shared_out])
+                    print("[INFO] Warm-start copied actor first layer with exact input contract.")
+                elif source_weight.shape[1] == self.policy_obs_dim + 3 and target_weight.shape[1] >= self.policy_obs_dim:
+                    # Historical flat priors included base_lin_vel as the first
+                    # three actor observations.  The MJLAB deploy contract drops
+                    # base_lin_vel, so copy columns 3: into the deployable
+                    # policy-observation slice and leave history-feature columns
+                    # at small random init.
+                    target_weight[:shared_out, : self.policy_obs_dim].copy_(
+                        source_weight[:shared_out, 3 : 3 + self.policy_obs_dim]
+                    )
+                    print(
+                        "[INFO] Warm-start remapped flat actor first layer from "
+                        f"{source_weight.shape[1]} obs to deployable {self.policy_obs_dim} obs "
+                        "by dropping base_lin_vel columns."
+                    )
+                else:
+                    shared_in = min(source_weight.shape[1], target_weight.shape[1])
+                    target_weight[:shared_out, :shared_in].copy_(source_weight[:shared_out, :shared_in])
+                    print(
+                        "[WARN] Warm-start used generic partial first-layer copy: "
+                        f"source_in={source_weight.shape[1]} target_in={target_weight.shape[1]}."
+                    )
         if first_bias_key in source_state:
             source_bias = source_state[first_bias_key]
             target_bias = module[0].bias

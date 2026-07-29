@@ -1,0 +1,133 @@
+{
+  "profile_name": "go2_terrain_locomotion_steps_v1_model5099",
+  "policy": {
+    "name": "go2_terrain_locomotion_steps_v1_candidate_5099",
+    "task": "Go2-Terrain-Locomotion-Stairs-V1",
+    "checkpoint": "logs/go2_terrain_locomotion_steps_v1/2026-07-16_10-14-29/model_5099.pt",
+    "bundle_dir": "artifacts/exported/go2_terrain_locomotion_steps_v1_candidate",
+    "training_truth": {
+      "env_yaml": "logs/go2_terrain_locomotion_steps_v1/2026-07-16_10-14-29/params/env.yaml",
+      "agent_yaml": "logs/go2_terrain_locomotion_steps_v1/2026-07-16_10-14-29/params/agent.yaml"
+    },
+    "deployment_command_ranges": {
+      "lin_vel_x": [-0.8, 0.8],
+      "lin_vel_y": [-0.3, 0.3],
+      "ang_vel_z": [-0.6, 0.6]
+    }
+  },
+  "acceptance_thresholds": {
+    "mujoco_nominal_v1": {
+      "successful_rollout_fraction_min": 1.0,
+      "base_height_mean_min": 0.22,
+      "base_tilt_projected_gravity_xy_mean_max": 0.25,
+      "vel_err_step_mean_max": 0.35,
+      "yaw_err_step_mean_max": 0.35
+    },
+    "mujoco_rough_v1": {
+      "successful_rollout_fraction_min": 0.9,
+      "base_height_mean_min": 0.20,
+      "base_tilt_projected_gravity_xy_mean_max": 0.35,
+      "vel_err_step_mean_max": 0.45,
+      "yaw_err_step_mean_max": 0.45
+    },
+    "mujoco_rough_v2_hard": {
+      "successful_rollout_fraction_min": 0.8,
+      "base_height_mean_min": 0.18,
+      "base_tilt_projected_gravity_xy_mean_max": 0.45,
+      "vel_err_step_mean_max": 0.60,
+      "yaw_err_step_mean_max": 0.60
+    },
+    "isaac_visual_parity": {
+      "flat": "no fall, no base drag, stable command tracking for 800 steps",
+      "random_rough": "no fall, no base drag, stable command tracking for 800 steps",
+      "pyramid_stairs": "climbs/stays mobile at terrain level 4 for 800 steps",
+      "pyramid_stairs_inv": "descends/stays mobile at terrain level 4 for 800 steps"
+    },
+    "hardware_bringup": {
+      "read_only_probe": "lowstate received on intended NIC",
+      "stance_only": "stable default stance, no crouch/asymmetry",
+      "low_speed_forward": "0.2-0.3 m/s controlled forward walk",
+      "omni_low_speed": "bounded lateral and yaw commands without instability",
+      "obstacle_smoke": "small safe obstacle/stair only after flat/omni pass"
+    }
+  },
+  "mujoco_suites": [
+    {
+      "suite": "mujoco_nominal_v1",
+      "purpose": "Flat nominal and basic dynamics perturbation sanity check",
+      "num_rollouts": 5,
+      "max_steps": 1500,
+      "reset_preset": "light"
+    },
+    {
+      "suite": "mujoco_disturb_v2_moderate",
+      "purpose": "Command transitions and moderate push disturbances",
+      "num_rollouts": 5,
+      "max_steps": 1500,
+      "reset_preset": "light"
+    },
+    {
+      "suite": "mujoco_rough_v1",
+      "purpose": "Forward rough recipes with rough blocks, hfields, stairs, and moderate perturbations",
+      "num_rollouts": 5,
+      "max_steps": 1800,
+      "reset_preset": "light"
+    },
+    {
+      "suite": "mujoco_rough_v2_hard",
+      "purpose": "Hard technical terrain recipes with stronger discontinuities",
+      "num_rollouts": 5,
+      "max_steps": 1800,
+      "reset_preset": "light"
+    }
+  ],
+  "isaac_parity_cases": [
+    {
+      "name": "normal_flat_forward",
+      "terrain_type": "plane",
+      "terrain_level": -1,
+      "command": [0.35, 0.0, 0.0],
+      "max_steps": 800
+    },
+    {
+      "name": "normal_random_rough_forward",
+      "terrain_type": "random_rough",
+      "terrain_level": 4,
+      "command": [0.35, 0.0, 0.0],
+      "max_steps": 800
+    },
+    {
+      "name": "normal_stairs_up_forward",
+      "terrain_type": "pyramid_stairs",
+      "terrain_level": 4,
+      "command": [0.35, 0.0, 0.0],
+      "max_steps": 800
+    },
+    {
+      "name": "normal_stairs_down_forward",
+      "terrain_type": "pyramid_stairs_inv",
+      "terrain_level": 4,
+      "command": [0.30, 0.0, 0.0],
+      "max_steps": 800
+    },
+    {
+      "name": "normal_slope_forward",
+      "terrain_type": "hf_pyramid_slope",
+      "terrain_level": 4,
+      "command": [0.35, 0.0, 0.0],
+      "max_steps": 800
+    },
+    {
+      "name": "normal_omni_diagonal",
+      "terrain_type": "plane",
+      "terrain_level": -1,
+      "command": [0.30, 0.15, 0.20],
+      "max_steps": 800
+    }
+  ],
+  "outputs": {
+    "mujoco_eval_root": "artifacts/mujoco_eval/go2_terrain_locomotion_steps_v1_candidate",
+    "deployment_gate_report": "artifacts/deployment_validation/go2_terrain_locomotion_steps_v1_candidate/validation_gate_report.json",
+    "success_record": "docs/ TERRAIN_ASYMPPO_MODEL5099_VALIDATION.md"
+  }
+}
